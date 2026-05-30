@@ -57,7 +57,8 @@ router.post('/match', async (req, res) => {
       return res.status(404).json({ error: "Resume or Job not found" });
     }
 
-    const aiResponse = await axios.post('http://localhost:8000/match', {
+    const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:8000';
+    const aiResponse = await axios.post(`${aiServiceUrl}/match`, {
       resumeText: resume.text,
       jobText: job.description
     });

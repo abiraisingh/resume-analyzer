@@ -3,6 +3,29 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 
+const DEMO_JOBS = [
+  {
+    _id: 'demo-1',
+    title: 'Senior Full Stack Developer',
+    description: 'Looking for a Senior Full Stack Developer with expertise in React, Node.js, and MongoDB. Must have 5+ years of experience in web development. Required skills: JavaScript, REST APIs, Git, AWS. Nice to have: Docker, GraphQL, TypeScript.'
+  },
+  {
+    _id: 'demo-2',
+    title: 'Frontend React Developer',
+    description: 'We are hiring a Frontend React Developer to join our growing team. Requirements: 3+ years of React experience, proficiency in HTML/CSS/JavaScript, experience with Redux or Context API, and knowledge of responsive design. Must have worked with Tailwind CSS or similar frameworks.'
+  },
+  {
+    _id: 'demo-3',
+    title: 'Backend Node.js Engineer',
+    description: 'Backend Node.js Engineer needed for our microservices architecture. Key requirements: Strong Node.js and Express experience, MongoDB database design, RESTful API development, understanding of JWT authentication, and CI/CD pipelines. Experience with Docker and Kubernetes is a plus.'
+  },
+  {
+    _id: 'demo-4',
+    title: 'Full Stack JavaScript Developer',
+    description: 'Join us as a Full Stack JavaScript Developer. Requirements: JavaScript/TypeScript proficiency, React or Vue.js frontend experience, Node.js backend skills, SQL/NoSQL database knowledge, and Git version control. Experience with testing frameworks like Jest and experience in Agile environments required.'
+  }
+];
+
 const JobMatch = () => {
   const [resumes, setResumes] = useState([]);
   const [jobs, setJobs] = useState([]);
@@ -27,9 +50,10 @@ const JobMatch = () => {
         const resumeRes = await axios.get(`${process.env.REACT_APP_API_URL}/api/resume`, { });
         const jobRes = await axios.get(`${process.env.REACT_APP_API_URL}/api/job`, { });
         setResumes(resumeRes.data);
-        setJobs(jobRes.data);
+        setJobs([...DEMO_JOBS, ...jobRes.data]);
       } catch (err) {
         console.error('Failed to fetch data:', err);
+        setJobs(DEMO_JOBS);
       }
     };
     fetchData();
@@ -66,8 +90,36 @@ const JobMatch = () => {
     setIsLoading(true);
 
     try {
-      const res = await axios.post(`${process.env.REACT_APP_API_URL}/api/job/match`, { resumeId: selectedResume, jobId: selectedJob });
-      setMatch(res.data);
+      // Check if it's a demo job
+      if (selectedJob.startsWith('demo-')) {
+        // For demo jobs, use client-side matching
+        const demoJob = DEMO_JOBS.find(job => job._id === selectedJob);
+        if (demoJob) {
+          // Extract keywords from job description (simple skill extraction)
+          const jobKeywords = demoJob.description.toLowerCase().split(/[\s,.;:()]/);
+          const commonSkills = [
+            'react', 'node.js', 'javascript', 'typescript', 'mongodb', 'express', 'html', 'css',
+            'rest', 'api', 'git', 'aws', 'docker', 'graphql', 'redux', 'context', 'tailwind',
+            'vue.js', 'sql', 'jwt', 'ci', 'cd', 'jest', 'testing', 'agile', 'microservices',
+            'kubernetes', 'responsive', 'design', 'authentication', 'database'
+          ];
+          
+          const matchedSkills = commonSkills.filter(skill => jobKeywords.includes(skill));
+          const missingSkills = commonSkills.filter(skill => !jobKeywords.includes(skill));
+          
+          const matchPercentage = (matchedSkills.length / commonSkills.length) * 100;
+          
+          setMatch({
+            matchPercentage: Math.round(matchPercentage * 10) / 10,
+            matchedSkills: matchedSkills,
+            missingSkills: missingSkills.slice(0, 10)
+          });
+        }
+      } else {
+        // For real jobs, use API
+        const res = await axios.post(`${process.env.REACT_APP_API_URL}/api/job/match`, { resumeId: selectedResume, jobId: selectedJob });
+        setMatch(res.data);
+      }
     } catch (err) {
       alert('Failed to match resume');
     } finally {

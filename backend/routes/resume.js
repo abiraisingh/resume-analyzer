@@ -44,8 +44,9 @@ router.post('/upload', upload.single('file'), async (req, res) => {
     }
 
     // 🤖 Call AI service
+    const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:8000';
     const aiResponse = await axios.post(
-      'http://localhost:8000/analyze',
+      `${aiServiceUrl}/analyze`,
       { text }
     );
 
