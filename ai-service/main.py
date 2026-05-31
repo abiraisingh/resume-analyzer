@@ -86,6 +86,8 @@ def find_missing_keywords(resume_text, job_text):
 
 @app.post('/analyze')
 def analyze_resume(request: AnalyzeRequest):
+    print("Analyze request received")
+    print("Text length:", len(request.text))
     text = request.text
     sections = extract_sections(text)
     skills = extract_skills(text)
