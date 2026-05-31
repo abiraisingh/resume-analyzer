@@ -46,6 +46,7 @@ const UploadResume = () => {
     const token = localStorage.getItem("token");
 
     try {
+      // eslint-disable-next-line no-unused-vars
       const response = await axios.post(
         `${process.env.REACT_APP_API_URL}/api/resume/upload`,
         formData,
