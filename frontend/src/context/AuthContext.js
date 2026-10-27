@@ -1,72 +1,70 @@
 import React, { createContext, useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
+import api from '../utils/api';
 
 export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState(localStorage.getItem('token'));
+  const [token, setToken] = useState(() => localStorage.getItem('token'));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Verify token and get user on mount
   useEffect(() => {
+    let active = true;
+
     const verifyToken = async () => {
       const storedToken = localStorage.getItem('token');
       if (storedToken) {
         try {
-          setToken(storedToken);
-          const res = await axios.get(
-            `${process.env.REACT_APP_API_URL}/api/auth/me`,
-            { headers: { Authorization: `Bearer ${storedToken}` } }
-          );
-          setUser(res.data.user);
-          setError(null);
-        } catch (err) {
-          localStorage.removeItem('token');
-          setToken(null);
-          setUser(null);
-          setError('Session expired. Please login again.');
+          const response = await api.get('/auth/me');
+          if (active) {
+            setToken(storedToken);
+            setUser(response.data.user);
+            setError(null);
+          }
+        } catch {
+          if (active) {
+            localStorage.removeItem('token');
+            setToken(null);
+            setUser(null);
+            setError('Session expired. Please sign in again.');
+          }
         }
       }
-      setLoading(false);
+
+      if (active) setLoading(false);
     };
 
     verifyToken();
+    return () => {
+      active = false;
+    };
   }, []);
 
   const login = useCallback(async (email, password) => {
     setError(null);
     try {
-      const res = await axios.post(
-        `${process.env.REACT_APP_API_URL}/api/auth/login`,
-        { email, password }
-      );
-      const { token, user } = res.data;
-      localStorage.setItem('token', token);
-      setToken(token);
-      setUser(user);
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      return res.data;
-    } catch (err) {
-      const errorMsg = err.response?.data?.error || 'Login failed';
-      setError(errorMsg);
-      throw err;
+      const response = await api.post('/auth/login', { email, password });
+      localStorage.setItem('token', response.data.token);
+      setToken(response.data.token);
+      setUser(response.data.user);
+      return response.data;
+    } catch (requestError) {
+      const message = requestError.response?.data?.error || 'Login failed';
+      setError(message);
+      throw requestError;
     }
   }, []);
 
   const register = useCallback(async (username, email, password) => {
     setError(null);
     try {
-      const res = await axios.post(
-        `${process.env.REACT_APP_API_URL}/api/auth/register`,
-        { username, email, password }
-      );
-      return res.data;
-    } catch (err) {
-      const errorMsg = err.response?.data?.error || 'Registration failed';
-      setError(errorMsg);
-      throw err;
+      const response = await api.post('/auth/register', { username, email, password });
+      return response.data;
+    } catch (requestError) {
+      const message = requestError.response?.data?.error || 'Registration failed';
+      setError(message);
+      throw requestError;
     }
   }, []);
 
@@ -75,7 +73,6 @@ export const AuthProvider = ({ children }) => {
     setToken(null);
     setUser(null);
     setError(null);
-    delete axios.defaults.headers.common['Authorization'];
   }, []);
 
   const value = {
@@ -86,7 +83,7 @@ export const AuthProvider = ({ children }) => {
     login,
     register,
     logout,
-    isAuthenticated: !!token && !!user,
+    isAuthenticated: Boolean(token && user),
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

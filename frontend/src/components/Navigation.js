@@ -1,106 +1,63 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-const Navigation = () => {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const navigate = useNavigate();
-  const { logout, user } = useAuth();
+const links = [
+  { label: 'Overview', path: '/' },
+  { label: 'New scan', path: '/upload' },
+  { label: 'Job studio', path: '/match' },
+  { label: 'Archive', path: '/history' },
+];
 
-  const handleLogout = () => {
+const Navigation = () => {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const { logout, user } = useAuth();
+  const navigate = useNavigate();
+
+  const signOut = () => {
     logout();
     navigate('/login');
   };
 
-  const navLinks = [
-    { label: 'Dashboard', path: '/' },
-    { label: 'Upload', path: '/upload' },
-    { label: 'Match Job', path: '/match' },
-    { label: 'History', path: '/history' },
-  ];
-
   return (
-    <nav className="fixed top-0 w-full z-50 bg-gradient-to-r from-primary-600 via-primary-700 to-accent-600 shadow-lg">
-      <div className="container mx-auto px-6 py-4">
-        <div className="flex justify-between items-center">
-          
-          {/* Logo */}
-          <Link to="/" className="flex items-center space-x-2 group">
-            <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center transform group-hover:scale-110 transition-transform">
-              <span className="text-lg font-bold bg-gradient-to-r from-primary-600 to-accent-600 bg-clip-text text-transparent">
-                RA
-              </span>
-            </div>
-            <span className="text-2xl font-bold text-white hidden sm:inline">
-              Resume Analyzer
-            </span>
-          </Link>
+    <header className="topbar">
+      <Link to="/" className="brand-lockup" aria-label="Career Canvas home">
+        <span className="brand-mark">C.</span>
+        <span className="brand-name">CAREER<span>CANVAS</span></span>
+      </Link>
 
-          {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center space-x-8">
-            {navLinks.map((link) => (
-              <Link
-                key={link.path}
-                to={link.path}
-                className="text-white hover:text-primary-100"
-              >
-                {link.label}
-              </Link>
-            ))}
-          </div>
+      <button
+        className="menu-toggle"
+        type="button"
+        aria-expanded={menuOpen}
+        aria-label={menuOpen ? 'Close navigation' : 'Open navigation'}
+        onClick={() => setMenuOpen(!menuOpen)}
+      >
+        {menuOpen ? 'CLOSE −' : 'MENU +'}
+      </button>
 
-          {/* User + Logout */}
-          <div className="hidden md:flex items-center space-x-4">
-            {user && (
-              <span className="text-white text-sm">
-                {user.username || user.email}
-              </span>
-            )}
-            <button
-              onClick={handleLogout}
-              className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg"
-            >
-              Logout
-            </button>
-          </div>
+      <nav className={`topbar-nav${menuOpen ? ' is-open' : ''}`} aria-label="Main navigation">
+        {links.map(({ label, path }) => (
+          <NavLink
+            key={path}
+            to={path}
+            end={path === '/'}
+            className={({ isActive }) => `nav-item${isActive ? ' is-active' : ''}`}
+            onClick={() => setMenuOpen(false)}
+          >
+            {label}
+          </NavLink>
+        ))}
+      </nav>
 
-          {/* Mobile Button */}
-          <div className="md:hidden">
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="text-white"
-            >
-              ☰
-            </button>
-          </div>
-        </div>
-
-        {/* Mobile Menu */}
-        {mobileMenuOpen && (
-          <div className="md:hidden mt-4 space-y-2">
-            {navLinks.map((link) => (
-              <Link
-                key={link.path}
-                to={link.path}
-                className="block text-white px-4 py-2"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                {link.label}
-              </Link>
-            ))}
-            <button
-              onClick={() => {
-                handleLogout();
-                setMobileMenuOpen(false);
-              }}
-              className="w-full text-left px-4 py-2 bg-red-500 text-white"
-            >
-              Logout
-            </button>
-          </div>
-        )}
+      <div className={`topbar-account${menuOpen ? ' is-open' : ''}`}>
+        <span className="account-avatar" aria-hidden="true">
+          {(user?.username || user?.email || 'C').charAt(0).toUpperCase()}
+        </span>
+        <span className="account-name">{user?.username || user?.email || 'Your studio'}</span>
+        <button className="signout-button" type="button" onClick={signOut}>Sign out ↗</button>
       </div>
-    </nav>
+    </header>
   );
 };
 

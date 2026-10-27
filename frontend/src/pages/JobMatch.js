@@ -1,501 +1,189 @@
-import React, { useState, useEffect } from "react";
-import axios from "axios";
-import { useNavigate } from "react-router-dom";
-import Navigation from "../components/Navigation";
+import React, { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import Navigation from '../components/Navigation';
+import api from '../utils/api';
 
-const DEMO_JOBS = [
-  {
-    _id: "demo-1",
-    title: "Senior Full Stack Developer",
-    description:
-      "Looking for a Senior Full Stack Developer with expertise in React, Node.js, and MongoDB. Must have 5+ years of experience in web development. Required skills: JavaScript, REST APIs, Git, AWS. Nice to have: Docker, GraphQL, TypeScript.",
-  },
-  {
-    _id: "demo-2",
-    title: "Frontend React Developer",
-    description:
-      "We are hiring a Frontend React Developer to join our growing team. Requirements: 3+ years of React experience, proficiency in HTML/CSS/JavaScript, experience with Redux or Context API, and knowledge of responsive design. Must have worked with Tailwind CSS or similar frameworks.",
-  },
-  {
-    _id: "demo-3",
-    title: "Backend Node.js Engineer",
-    description:
-      "Backend Node.js Engineer needed for our microservices architecture. Key requirements: Strong Node.js and Express experience, MongoDB database design, RESTful API development, understanding of JWT authentication, and CI/CD pipelines. Experience with Docker and Kubernetes is a plus.",
-  },
-  {
-    _id: "demo-4",
-    title: "Full Stack JavaScript Developer",
-    description:
-      "Join us as a Full Stack JavaScript Developer. Requirements: JavaScript/TypeScript proficiency, React or Vue.js frontend experience, Node.js backend skills, SQL/NoSQL database knowledge, and Git version control. Experience with testing frameworks like Jest and experience in Agile environments required.",
-  },
+const SKILL_TERMS = [
+  'python', 'javascript', 'typescript', 'react', 'node.js', 'express', 'mongodb',
+  'sql', 'postgres', 'mysql', 'java', 'c++', 'docker', 'kubernetes', 'aws',
+  'azure', 'git', 'html', 'css', 'tailwind', 'graphql', 'rest api', 'agile',
+  'machine learning', 'data analysis', 'communication', 'leadership', 'testing',
 ];
 
 const JobMatch = () => {
   const [resumes, setResumes] = useState([]);
   const [jobs, setJobs] = useState([]);
-  const [selectedResume, setSelectedResume] = useState("");
-  const [selectedJob, setSelectedJob] = useState("");
+  const [selectedResume, setSelectedResume] = useState('');
+  const [selectedJob, setSelectedJob] = useState('');
   const [match, setMatch] = useState(null);
-  const [jobTitle, setJobTitle] = useState("");
-  const [jobDesc, setJobDesc] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [jobTitle, setJobTitle] = useState('');
+  const [jobDesc, setJobDesc] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isWorking, setIsWorking] = useState(false);
   const [showForm, setShowForm] = useState(false);
-  const navigate = useNavigate();
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      navigate("/login");
-      return;
-    }
-
-    const fetchData = async () => {
-      try {
-        const resumeRes = await axios.get(
-          `${process.env.REACT_APP_API_URL}/api/resume`,
-        );
-
-        const jobRes = await axios.get(
-          `${process.env.REACT_APP_API_URL}/api/job`,
-        );
-
-        const resumesData = Array.isArray(resumeRes.data)
-          ? resumeRes.data
-          : resumeRes.data.data || [];
-
-        const jobsData = Array.isArray(jobRes.data)
-          ? jobRes.data
-          : jobRes.data.data || [];
-
-        setResumes(resumesData);
-        setJobs([...DEMO_JOBS, ...jobsData]);
-      } catch (err) {
-        console.error("Failed to fetch data:", err);
-        setResumes([]);
-        setJobs(DEMO_JOBS);
-      }
-    };
-    fetchData();
-  }, [navigate]);
-
-  const handleCreateJob = async () => {
-    if (!jobTitle || !jobDesc) {
-      alert("Please fill in all fields");
-      return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      const res = await axios.post(`${process.env.REACT_APP_API_URL}/api/job`, {
-        title: jobTitle,
-        description: jobDesc,
+    let active = true;
+    Promise.all([api.get('/resume'), api.get('/job')])
+      .then(([resumeResponse, jobResponse]) => {
+        if (!active) return;
+        const resumeList = Array.isArray(resumeResponse.data.data) ? resumeResponse.data.data : [];
+        const jobList = Array.isArray(jobResponse.data) ? jobResponse.data : [];
+        setResumes(resumeList);
+        setJobs(jobList);
+        if (resumeList[0]) setSelectedResume(resumeList[0]._id);
+      })
+      .catch(() => {
+        if (active) setError('We couldn’t open your job studio. Please refresh and try again.');
+      })
+      .finally(() => {
+        if (active) setIsLoading(false);
       });
-      setJobs([...jobs, res.data]);
-      setJobTitle("");
-      setJobDesc("");
-      setShowForm(false);
-      alert("Job description created!");
-    } catch (err) {
-      alert("Failed to create job");
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
-  const handleMatch = async () => {
-    if (!selectedResume || !selectedJob) {
-      alert("Please select both a resume and job");
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const activeResume = useMemo(
+    () => resumes.find((resume) => resume._id === selectedResume),
+    [resumes, selectedResume],
+  );
+  const activeJob = useMemo(
+    () => jobs.find((job) => job._id === selectedJob),
+    [jobs, selectedJob],
+  );
+
+  const createJob = async (event) => {
+    event.preventDefault();
+    if (!jobTitle.trim() || !jobDesc.trim()) {
+      setError('Add a title and description to save this role.');
       return;
     }
 
-    setIsLoading(true);
-
+    setIsWorking(true);
+    setError('');
     try {
-      // Check if it's a demo job
-      if (selectedJob.startsWith("demo-")) {
-        // For demo jobs, use client-side matching
-        const demoJob = DEMO_JOBS.find((job) => job._id === selectedJob);
-        if (demoJob) {
-          // Extract keywords from job description (simple skill extraction)
-          const jobKeywords = demoJob.description
-            .toLowerCase()
-            .split(/[\s,.;:()]/);
-          const commonSkills = [
-            "react",
-            "node.js",
-            "javascript",
-            "typescript",
-            "mongodb",
-            "express",
-            "html",
-            "css",
-            "rest",
-            "api",
-            "git",
-            "aws",
-            "docker",
-            "graphql",
-            "redux",
-            "context",
-            "tailwind",
-            "vue.js",
-            "sql",
-            "jwt",
-            "ci",
-            "cd",
-            "jest",
-            "testing",
-            "agile",
-            "microservices",
-            "kubernetes",
-            "responsive",
-            "design",
-            "authentication",
-            "database",
-          ];
-
-          const matchedSkills = commonSkills.filter((skill) =>
-            jobKeywords.includes(skill),
-          );
-          const missingSkills = commonSkills.filter(
-            (skill) => !jobKeywords.includes(skill),
-          );
-
-          const matchPercentage =
-            (matchedSkills.length / commonSkills.length) * 100;
-
-          setMatch({
-            matchPercentage: Math.round(matchPercentage * 10) / 10,
-            matchedSkills: matchedSkills,
-            missingSkills: missingSkills.slice(0, 10),
-          });
-        }
-      } else {
-        // For real jobs, use API
-        const res = await axios.post(
-          `${process.env.REACT_APP_API_URL}/api/job/match`,
-          { resumeId: selectedResume, jobId: selectedJob },
-        );
-        setMatch(res.data);
-      }
-    } catch (err) {
-      alert("Failed to match resume");
+      const { data } = await api.post('/job', { title: jobTitle.trim(), description: jobDesc.trim() });
+      setJobs((current) => [data, ...current]);
+      setSelectedJob(data._id);
+      setJobTitle('');
+      setJobDesc('');
+      setShowForm(false);
+    } catch (requestError) {
+      setError(requestError.response?.data?.error || 'We couldn’t save that role. Please try again.');
     } finally {
-      setIsLoading(false);
+      setIsWorking(false);
     }
   };
+
+  const runMatch = async () => {
+    if (!activeResume || !activeJob) {
+      setError('Choose both a resume and a saved role before comparing.');
+      return;
+    }
+
+    setIsWorking(true);
+    setError('');
+    setMatch(null);
+    try {
+      const { data } = await api.post('/job/match', {
+        resumeId: activeResume._id,
+        jobId: activeJob._id,
+      });
+      setMatch(data);
+    } catch (requestError) {
+      setError(requestError.response?.data?.error || 'The comparison couldn’t be completed. Please try again.');
+    } finally {
+      setIsWorking(false);
+    }
+  };
+
+  const displayScore = Math.max(0, Math.min(100, Number(match?.matchPercentage) || 0));
+  const matchedSkills = activeResume?.analysis?.skills?.filter((skill) => (
+    `${activeJob?.title || ''} ${activeJob?.description || ''}`.toLowerCase().includes(skill.toLowerCase())
+  )) || [];
+  const possibleSkills = SKILL_TERMS.filter((skill) => (
+    `${activeJob?.title || ''} ${activeJob?.description || ''}`.toLowerCase().includes(skill)
+  ));
+  const relevantGaps = possibleSkills.filter((skill) => (
+    !activeResume?.analysis?.skills?.some((resumeSkill) => resumeSkill.toLowerCase() === skill)
+  ));
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50">
+    <div className="app-shell">
       <Navigation />
+      <main className="page-wrap inner-page">
+        <div className="inner-header">
+          <div><p className="eyebrow"><span className="eyebrow-dot" /> THE ROLE-READY STUDIO</p><h1 className="display-title inner-title">Find your<br /><span>yes in the job.</span></h1></div>
+          <div className="header-side-note">YOUR SKILLS.<br />THEIR WISHLIST.<br />LET’S CONNECT. <span>✳</span></div>
+        </div>
 
-      <main className="pt-24 pb-12">
-        <div className="container mx-auto px-6">
-          {/* Header */}
-          <div className="mb-10 animate-slideUp">
-            <h1 className="section-title text-4xl mb-3">
-              Match Resume with Job
-            </h1>
-            <p className="text-lg text-gray-600">
-              Find out how well your resume matches job descriptions and get
-              insights on missing skills.
-            </p>
-          </div>
-
-          {/* Selection Section */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-            {/* Job Creation/Selection */}
-            <div className="card p-8 animate-slideUp">
-              <div className="flex justify-between items-start mb-6">
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-800">
-                    Job Description
-                  </h2>
-                  <p className="text-sm text-gray-600 mt-1">
-                    Select or create a job to match against
-                  </p>
-                </div>
-                <button
-                  onClick={() => setShowForm(!showForm)}
-                  className="btn-secondary px-4 py-2 text-sm"
-                >
-                  {showForm ? "Cancel" : "+ New Job"}
-                </button>
-              </div>
-
-              {showForm ? (
-                <div className="space-y-4">
-                  <div>
-                    <label className="label-text">Job Title</label>
-                    <input
-                      type="text"
-                      placeholder="e.g., Senior Full Stack Developer"
-                      value={jobTitle}
-                      onChange={(e) => setJobTitle(e.target.value)}
-                      className="input-field"
-                    />
-                  </div>
-                  <div>
-                    <label className="label-text">Job Description</label>
-                    <textarea
-                      placeholder="Paste the full job description here..."
-                      value={jobDesc}
-                      onChange={(e) => setJobDesc(e.target.value)}
-                      className="input-field h-40 resize-none"
-                    />
-                  </div>
-                  <button
-                    onClick={handleCreateJob}
-                    disabled={isLoading || !jobTitle || !jobDesc}
-                    className="btn-primary w-full"
-                  >
-                    {isLoading ? "Creating..." : "Create Job Description"}
-                  </button>
-                </div>
-              ) : (
-                <div>
-                  <label className="label-text">Select Job</label>
-                  <select
-                    value={selectedJob}
-                    onChange={(e) => setSelectedJob(e.target.value)}
-                    className="input-field"
-                  >
-                    <option value="">-- Choose a job --</option>
-                    {jobs.map((j) => (
-                      <option key={j._id} value={j._id}>
-                        {j.title}
-                      </option>
-                    ))}
-                  </select>
-                  {jobs.length === 0 && (
-                    <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                      <p className="text-sm text-blue-700">
-                        No job descriptions yet. Create one to get started!
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Resume Selection */}
-            <div
-              className="card p-8 animate-slideUp"
-              style={{ animationDelay: "100ms" }}
-            >
-              <h2 className="text-2xl font-bold text-gray-800 mb-2">
-                Your Resume
-              </h2>
-              <p className="text-sm text-gray-600 mb-6">
-                Select the resume to match
-              </p>
-
-              <label className="label-text">Select Resume</label>
-              <select
-                value={selectedResume}
-                onChange={(e) => setSelectedResume(e.target.value)}
-                className="input-field"
-              >
-                <option value="">-- Choose a resume --</option>
-                {resumes.map((r) => (
-                  <option key={r._id} value={r._id}>
-                    {r.filename}
-                  </option>
-                ))}
+        <section className="match-workbench">
+          <div className="workbench-heading"><span>THE PERFECT-FIT FINDER</span><span>02 / ROLE MATCH</span></div>
+          <div className="match-selectors">
+            <label className="match-picker">
+              <span className="picker-label"><span>01</span> YOUR RESUME</span>
+              <select value={selectedResume} onChange={(event) => { setSelectedResume(event.target.value); setMatch(null); }}>
+                <option value="">Choose a resume…</option>
+                {resumes.map((resume) => <option key={resume._id} value={resume._id}>{resume.filename}</option>)}
               </select>
-              {resumes.length === 0 && (
-                <div className="mt-4 p-4 bg-orange-50 rounded-lg border border-orange-200">
-                  <p className="text-sm text-orange-700">
-                    No resumes uploaded yet.{" "}
-                    <a
-                      href="/upload"
-                      className="font-semibold underline hover:no-underline"
-                    >
-                      Upload one first
-                    </a>
-                  </p>
-                </div>
-              )}
-            </div>
+              {activeResume && <span className="picker-foot">{activeResume.analysis?.skills?.length || 0} SKILLS SPOTTED IN THIS SCAN</span>}
+            </label>
+
+            <div className="match-symbol" aria-hidden="true">✳</div>
+
+            <label className="match-picker picker-pink">
+              <span className="picker-label"><span>02</span> THE ROLE</span>
+              <select value={selectedJob} onChange={(event) => { setSelectedJob(event.target.value); setMatch(null); }}>
+                <option value="">Choose a saved role…</option>
+                {jobs.map((job) => <option key={job._id} value={job._id}>{job.title}</option>)}
+              </select>
+              <span className="picker-foot">{jobs.length} ROLE{jobs.length === 1 ? '' : 'S'} IN YOUR STUDIO</span>
+            </label>
           </div>
 
-          {/* Match Button */}
-          <div
-            className="text-center mb-8 animate-slideUp"
-            style={{ animationDelay: "200ms" }}
-          >
-            <button
-              onClick={handleMatch}
-              disabled={isLoading || !selectedResume || !selectedJob}
-              className="btn-primary px-12 py-3 text-lg font-bold inline-block disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isLoading ? (
-                <span className="flex items-center justify-center">
-                  <svg
-                    className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    ></circle>
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    ></path>
-                  </svg>
-                  Finding matches...
-                </span>
-              ) : (
-                "Analyze Match"
-              )}
+          <div className="workbench-actions">
+            <button type="button" className="button button-outline" onClick={() => { setShowForm(!showForm); setError(''); }}>
+              {showForm ? 'CANCEL' : '＋ SAVE A ROLE'}
+            </button>
+            <button type="button" className="button button-ink" onClick={runMatch} disabled={isLoading || isWorking || !activeResume || !activeJob}>
+              {isWorking ? 'MAKING THE INTRO…' : 'CHECK OUR CHEMISTRY'} <span>{isWorking ? '◌' : '↗'}</span>
             </button>
           </div>
 
-          {/* Match Results */}
-          {match && (
-            <div
-              className="card p-10 animate-slideUp"
-              style={{ animationDelay: "300ms" }}
-            >
-              <h2 className="text-3xl font-bold text-gray-800 mb-8">
-                Match Analysis Results
-              </h2>
-
-              {/* Match Score Card */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-                {/* Main Score */}
-                <div className="col-span-1 md:col-span-1 bg-gradient-to-br from-primary-50 to-accent-50 rounded-xl p-8 border border-primary-200">
-                  <p className="text-sm text-gray-600 font-medium mb-2">
-                    Match Score
-                  </p>
-                  <div className="text-5xl font-bold text-transparent bg-gradient-to-r from-primary-600 to-accent-600 bg-clip-text mb-4">
-                    {match.matchPercentage?.toFixed(1)}%
-                  </div>
-                  <div className="progress-bar mb-3">
-                    <div
-                      className={`${
-                        match.matchPercentage > 80
-                          ? "bg-gradient-to-r from-green-500 to-green-600"
-                          : match.matchPercentage > 60
-                            ? "bg-gradient-to-r from-blue-500 to-blue-600"
-                            : match.matchPercentage > 40
-                              ? "bg-gradient-to-r from-yellow-500 to-yellow-600"
-                              : "bg-gradient-to-r from-red-500 to-red-600"
-                      } progress-fill`}
-                      style={{
-                        width: `${Math.min(match.matchPercentage, 100)}%`,
-                      }}
-                    ></div>
-                  </div>
-                  <p className="text-sm font-semibold text-gray-700">
-                    {match.matchPercentage > 80
-                      ? "🎯 Excellent Match!"
-                      : match.matchPercentage > 60
-                        ? "✓ Good Match"
-                        : match.matchPercentage > 40
-                          ? "⚠ Moderate Match"
-                          : "📈 Needs Improvement"}
-                  </p>
-                </div>
-
-                {/* Stats */}
-                <div className="col-span-1 bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-8 border border-green-200">
-                  <p className="text-sm text-gray-600 font-medium mb-4">
-                    Matched Skills
-                  </p>
-                  <p className="text-4xl font-bold text-green-600 mb-2">
-                    {match.matchedSkills?.length || 0}
-                  </p>
-                  <p className="text-xs text-gray-600">
-                    Keywords found in your resume
-                  </p>
-                </div>
-
-                <div className="col-span-1 bg-gradient-to-br from-orange-50 to-red-50 rounded-xl p-8 border border-orange-200">
-                  <p className="text-sm text-gray-600 font-medium mb-4">
-                    Missing Skills
-                  </p>
-                  <p className="text-4xl font-bold text-orange-600 mb-2">
-                    {match.missingSkills?.length || 0}
-                  </p>
-                  <p className="text-xs text-gray-600">
-                    Keywords not in your resume
-                  </p>
-                </div>
-              </div>
-
-              {/* Matched Skills */}
-              {match.matchedSkills && match.matchedSkills.length > 0 && (
-                <div className="mb-8">
-                  <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
-                    <svg
-                      className="w-5 h-5 mr-2 text-green-600"
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                    Your Matching Skills
-                  </h3>
-                  <div className="flex flex-wrap gap-3">
-                    {match.matchedSkills.map((skill, idx) => (
-                      <span key={idx} className="badge-success">
-                        ✓ {skill}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Missing Skills */}
-              {match.missingSkills && match.missingSkills.length > 0 && (
-                <div>
-                  <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
-                    <svg
-                      className="w-5 h-5 mr-2 text-orange-600"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 9v2m0 4v2m0 6H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                      />
-                    </svg>
-                    Skills to Add
-                  </h3>
-                  <div className="flex flex-wrap gap-3">
-                    {match.missingSkills.slice(0, 10).map((skill, idx) => (
-                      <span key={idx} className="badge-warning">
-                        ⚠ {skill}
-                      </span>
-                    ))}
-                  </div>
-                  {match.missingSkills.length > 10 && (
-                    <p className="text-sm text-gray-600 mt-3">
-                      ... and {match.missingSkills.length - 10} more skills
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
+          {showForm && (
+            <form className="job-form" onSubmit={createJob}>
+              <label>THE JOB TITLE<input value={jobTitle} onChange={(event) => setJobTitle(event.target.value)} placeholder="e.g. Product designer, plot twist specialist" required maxLength={120} /></label>
+              <label>THE JOB DESCRIPTION<textarea value={jobDesc} onChange={(event) => setJobDesc(event.target.value)} placeholder="Paste the role details here…" rows={6} required maxLength={20000} /></label>
+              <button type="submit" className="button button-ink" disabled={isWorking}>{isWorking ? 'SAVING…' : 'SAVE THIS ROLE ↗'}</button>
+            </form>
           )}
-        </div>
+          {error && <div className="notice notice-error" role="alert">{error}</div>}
+          {!isLoading && !resumes.length && (
+            <div className="inline-empty"><span>NO RESUME, NO ROMANCE.</span><p>Give us a resume to find your strongest matches.</p><Link className="text-link" to="/upload">ADD YOUR FIRST RESUME ↗</Link></div>
+          )}
+          {!isLoading && !jobs.length && (
+            <div className="inline-empty"><span>THE JOB BOARD IS YOURS.</span><p>Save a job description to get your first match.</p></div>
+          )}
+        </section>
+
+        {match && (
+          <section className="match-result" aria-live="polite">
+            <div className="result-score"><span>YOUR ROLE<br />CHEMISTRY</span><strong>{displayScore}<small>%</small></strong><div className="result-score-ring" style={{ '--score': `${displayScore}%` }} /></div>
+            <div className="result-details">
+              <p className="eyebrow">THE FIRST IMPRESSION IS IN</p>
+              <h2>{displayScore >= 70 ? 'Looking like a good thing.' : displayScore >= 40 ? 'There’s something here.' : 'Room for a plot twist.'}</h2>
+              <p className="result-subtitle">{activeResume?.filename} <span>×</span> {activeJob?.title}</p>
+              {matchedSkills.length > 0 && <div className="result-tags"><span className="tag-caption">IN YOUR CORNER</span>{matchedSkills.slice(0, 8).map((skill) => <span className="skill-tag" key={skill}>{skill}</span>)}</div>}
+              {relevantGaps.length > 0 && <div className="result-tags"><span className="tag-caption">WORDS TO WEAVE IN</span>{relevantGaps.slice(0, 8).map((skill) => <span className="skill-tag tag-gap" key={skill}>{skill}</span>)}</div>}
+              {match.missingSkills?.length > 0 && <div className="result-tags"><span className="tag-caption">OTHER KEYWORDS TO CONSIDER</span>{match.missingSkills.slice(0, 8).map((skill) => <span className="skill-tag tag-gap" key={skill}>{skill}</span>)}</div>}
+            </div>
+          </section>
+        )}
+
+        <footer className="page-footer"><span>CAREER CANVAS © 2025</span><span>THE RIGHT ROLE HAS YOUR NAME ON IT ✳</span></footer>
       </main>
     </div>
   );
