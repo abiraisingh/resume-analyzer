@@ -1,0 +1,11 @@
+fastapi==0.109.0
+uvicorn==0.27.0
+pydantic==2.5.0
+
+# Core ML dependencies (IMPORTANT)
+numpy>=2.0.0
+scipy>=1.14.0
+scikit-learn>=1.3.2
+
+# File upload
+python-multipart==0.0.6
